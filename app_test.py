@@ -8,13 +8,15 @@ st.title("🐣 こども質問箱")
 st.caption("3さい〜10さいのみんなの ぎもんに こたえるよ！")
 
 # 2. APIキーの設定
+# 画面左側のサイドバーに入力欄を表示します
 api_key = st.sidebar.text_input("Gemini API Key", type="password")
 
 if api_key:
     try:
+        # クライアントの初期化
         client = genai.Client(api_key=api_key)
         
-        # 3. システムプロンプト（ボットの性格を決める）
+        # 3. システムプロンプト（こども向けのルール）
         SYSTEM_PROMPT = """
         あなたは「こども質問箱」の優しい先生です。
         - 3歳から10歳の子供が理解できる言葉を使ってください。
@@ -33,32 +35,46 @@ if api_key:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
 
-        # ユーザーの入力
+        # 4. ユーザーの入力
         if prompt := st.chat_input("なにが しりたい？"):
+            # ユーザーの質問を履歴に追加
             st.session_state.messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
 
-            # Geminiからの回答
+            # Geminiからの回答を生成
             with st.chat_message("assistant"):
                 try:
-                    # モデルを安定版の「gemini-2.0-flash」に変更
+                    # 429エラー対策として、最も安定した gemini-1.5-flash を採用
                     config = types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT)
                     response = client.models.generate_content(
-                        model="gemini-2.0-flash", 
+                        model="gemini-1.5-flash", 
                         config=config,
                         contents=prompt
                     )
+                    
+                    # 回答を表示して履歴に保存
                     st.markdown(response.text)
                     st.session_state.messages.append({"role": "assistant", "content": response.text})
                 
                 except Exception as e:
-                    # サーバーエラーなどが起きた場合の優しいフォロー
-                    error_msg = "ごめんね、いま ちょっと かんがえ中（ちゅう）で 答えられないんだ。もういちど きいてみてね！"
-                    st.error(error_msg)
-                    # ログを確認したい場合は st.write(e) を追加してもOK
+                    # エラーが起きた時の表示
+                    if "429" in str(e):
+                        st.error("ごめんね。いま ほかの人も たくさん質問（しつもん）していて、AIがお疲れ（つかれ）みたい。1分（いっぷん）くらい まってから、もういちど 送ってね。")
+                    else:
+                        st.error("ごめんね、うまく 答えられなかったよ。もういちど きいてみてね！")
+                    
+                    # 開発者向けにエラー詳細を小さく表示
+                    with st.expander("エラーのくわしい内容（ないよう）"):
+                        st.write(e)
                     
     except Exception as init_error:
-        st.error("APIキーが まちがっているみたいだよ。かくにんしてみてね！")
+        st.error("APIキーが まちがっているか、うまく動（うご）いていないみたい。設定（せってい）を かくにんしてね！")
 else:
-    st.warning("左側のメニューに APIキーを いれてね！")
+    st.info("← 左がわのメニューに APIキーを いれてね！")
+    st.markdown("""
+    ### つかいかた
+    1. [Google AI Studio](https://aistudio.google.com/app/apikey) でキーをもらってきます。
+    2. 左の空欄（くうらん）に貼り付けます。
+    3. 下の入力欄（にゅうりょくらん）で質問（しつもん）してみてね！
+    """)
