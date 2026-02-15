@@ -8,7 +8,6 @@ st.title("🐣 こども質問箱")
 st.caption("3さい〜10さいのみんなの ぎもんに こたえるよ！")
 
 # 2. APIキーの設定
-# 画面左側のサイドバーに入力欄を表示します
 api_key = st.sidebar.text_input("Gemini API Key", type="password")
 
 if api_key:
@@ -16,7 +15,7 @@ if api_key:
         # クライアントの初期化
         client = genai.Client(api_key=api_key)
         
-        # 3. システムプロンプト（こども向けのルール）
+        # 3. システムプロンプト（子供向けのふるまいを定義）
         SYSTEM_PROMPT = """
         あなたは「こども質問箱」の優しい先生です。
         - 3歳から10歳の子供が理解できる言葉を使ってください。
@@ -45,8 +44,9 @@ if api_key:
             # Geminiからの回答を生成
             with st.chat_message("assistant"):
                 try:
-                    # 429エラー対策として、最も安定した gemini-1.5-flash を採用
+                    # モデル名を最新ライブラリが最も認識しやすい形式に変更
                     config = types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT)
+                    
                     response = client.models.generate_content(
                         model="gemini-1.5-flash", 
                         config=config,
@@ -54,27 +54,33 @@ if api_key:
                     )
                     
                     # 回答を表示して履歴に保存
-                    st.markdown(response.text)
-                    st.session_state.messages.append({"role": "assistant", "content": response.text})
+                    if response.text:
+                        st.markdown(response.text)
+                        st.session_state.messages.append({"role": "assistant", "content": response.text})
+                    else:
+                        st.error("AIがうまく言葉を見つけられなかったみたい。別の聞き方をしてね。")
                 
                 except Exception as e:
-                    # エラーが起きた時の表示
-                    if "429" in str(e):
-                        st.error("ごめんね。いま ほかの人も たくさん質問（しつもん）していて、AIがお疲れ（つかれ）みたい。1分（いっぷん）くらい まってから、もういちど 送ってね。")
+                    # エラーメッセージの分岐
+                    error_str = str(e)
+                    if "429" in error_str:
+                        st.error("ごめんね。いま ほかの人も たくさん質問していて、AIがお疲れみたい。1分くらい まってから、もういちど 送ってね。")
+                    elif "404" in error_str:
+                        st.error("モデルが見つかりませんでした。APIの設定を確認してください。")
                     else:
                         st.error("ごめんね、うまく 答えられなかったよ。もういちど きいてみてね！")
                     
-                    # 開発者向けにエラー詳細を小さく表示
-                    with st.expander("エラーのくわしい内容（ないよう）"):
+                    # 開発者デバッグ用の詳細（不要になったら消してもOK）
+                    with st.expander("エラーの詳細を確認する"):
                         st.write(e)
                     
     except Exception as init_error:
-        st.error("APIキーが まちがっているか、うまく動（うご）いていないみたい。設定（せってい）を かくにんしてね！")
+        st.error("アプリの準備中にエラーが起きました。APIキーが正しいか確認してね！")
 else:
     st.info("← 左がわのメニューに APIキーを いれてね！")
     st.markdown("""
     ### つかいかた
     1. [Google AI Studio](https://aistudio.google.com/app/apikey) でキーをもらってきます。
-    2. 左の空欄（くうらん）に貼り付けます。
-    3. 下の入力欄（にゅうりょくらん）で質問（しつもん）してみてね！
+    2. 左の空欄（サイドバー）に貼り付けます。
+    3. 下の入力欄（チャット欄）で質問してみてね！
     """)
