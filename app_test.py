@@ -12,7 +12,7 @@ api_key = st.sidebar.text_input("Gemini API Key", type="password")
 
 if api_key:
     try:
-        # クライアントの初期化
+        # SDK v1.0.0以降の書き方に準拠
         client = genai.Client(api_key=api_key)
         
         # 3. システムプロンプト
@@ -43,14 +43,15 @@ if api_key:
             # Geminiからの回答を生成
             with st.chat_message("assistant"):
                 try:
-                    config = types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT)
-                    
-                    # 【重要】404対策：モデル名をフルパス「models/gemini-2.0-flash」で指定
-                    # これにより、ライブラリがモデルを見失うのを防ぎます
+                    # 最新SDKではモデル名に 'models/' を含めないのが正解な場合があります
+                    # また、configの指定方法をよりシンプルにしています
                     response = client.models.generate_content(
-                        model="models/gemini-2.0-flash", 
-                        config=config,
-                        contents=prompt
+                        model='gemini-1.5-flash', 
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            system_instruction=SYSTEM_PROMPT,
+                            temperature=0.7
+                        )
                     )
                     
                     if response.text:
@@ -60,24 +61,21 @@ if api_key:
                         st.error("AIが回答を作れませんでした。")
                 
                 except Exception as e:
-                    error_str = str(e)
-                    if "429" in error_str:
-                        st.error("混み合っています。1分待ってください。")
-                    elif "404" in error_str:
-                        # まだ404が出る場合の予備：別名で再試行
-                        st.error("モデルが見つかりません。名前を models/gemini-1.5-flash に変えて試します...")
+                    # 404が出た場合、自動で別パターンを試す
+                    if "404" in str(e):
                         try:
+                            # パターン2: models/ を付与した形式でリトライ
                             response = client.models.generate_content(
-                                model="models/gemini-1.5-flash", 
-                                config=config,
-                                contents=prompt
+                                model='models/gemini-1.5-flash',
+                                contents=prompt,
+                                config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT)
                             )
                             st.markdown(response.text)
                             st.session_state.messages.append({"role": "assistant", "content": response.text})
-                        except:
-                            st.error("やはり接続できません。APIキーの設定を確認してください。")
+                        except Exception as e2:
+                            st.error(f"モデルが見つかりません。APIキーの種類を確認してください。\n{e2}")
                     else:
-                        st.error(f"エラーが発生しました: {error_str}")
+                        st.error(f"エラー: {e}")
                     
     except Exception as init_error:
         st.error(f"初期化エラー: {init_error}")
